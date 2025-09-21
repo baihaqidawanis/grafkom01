@@ -33,159 +33,181 @@ function init() {
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
     
-    // Buat model monitor
-    createMonitorModel();
+    // Buat model monitor yang lebih detail
+    createDetailedMonitorModel();
 
-    // Setup buffer
     setupBuffers();
 
-    // Dapatkan lokasi uniform
     modelViewMatrixLoc = gl.getUniformLocation(program, "modelViewMatrix");
     projectionMatrixLoc = gl.getUniformLocation(program, "projectionMatrix");
 
-    // Atur matriks proyeksi (sudut pandang kamera)
     projectionMatrix = perspective(50.0, canvas.width / canvas.height, 0.1, 100.0);
     gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(projectionMatrix));
 
     setupEventListeners();
-
     render();
 }
 
 /**
- * Membuat geometri dan warna untuk model monitor
+ * FUNGSI BARU UNTUK MEMBUAT MODEL YANG LEBIH DETAIL
  */
+function createDetailedMonitorModel() {
+    const bezelColor = vec4(0.2, 0.2, 0.2, 1.0);
+    const panelColor = vec4(0.05, 0.05, 0.05, 1.0);
+    const standColor = vec4(0.5, 0.5, 0.5, 1.0);
+    const baseColor = vec4(0.3, 0.3, 0.3, 1.0);
 
-function createMonitorModel() {
-    // Warna
-    const screenBezelColor = vec4(0.2, 0.2, 0.2, 1.0); // Abu-abu gelap
-    const screenPanelColor = vec4(0.05, 0.05, 0.05, 1.0); // Hampir hitam
-    const standColor = vec4(0.5, 0.5, 0.5, 1.0); // Abu-abu medium untuk tiang
-    const baseColor = vec4(0.3, 0.3, 0.3, 1.0);   // Abu-abu lebih gelap untuk alas
-    
-    // Dimensi
     const screenWidth = 0.7;
-    const screenHeight = 0.42; // Sedikit lebih tinggi
-    const screenDepth = 0.05;  // Sedikit lebih tebal
-    
-    // Vertikal offset untuk centering
-    const yOffset = 0.35; 
+    const screenHeight = 0.42;
+    const screenDepthFront = 0.02;
+    const screenDepthBack = 0.05; // Ketebalan maksimal di bagian belakang
+    const yOffset = 0.35;
 
-    // 1. Bezel/Bingkai Layar (Balok)
-    createCube(screenWidth, screenHeight, screenDepth, screenBezelColor, 0, yOffset, 0);
+    // 1. Buat Bingkai Depan (Bezel) dan Panel Layar
+    // Hanya bagian depan dari sebuah balok
+    createCubeFace(screenWidth, screenHeight, screenDepthFront, bezelColor, 0, yOffset, 0);
+    createCubeFace(screenWidth * 0.92, screenHeight * 0.88, screenDepthFront + 0.001, panelColor, 0, yOffset, 0);
 
-    // 2. Panel Layar (Balok lebih tipis di depan Bezel)
-    createCube(screenWidth * 0.92, screenHeight * 0.88, 0.01, screenPanelColor, 0, yOffset, screenDepth / 2 + 0.005);
-    
-    // 3. Tiang Penyangga (Silinder) - Dibuat lebih pendek
-    const standHeight = 0.25; // <--- TINGGI TIANG DIKURANGI
+    // 2. Buat Panel Belakang yang Melengkung
+    createCurvedBackPanel(screenWidth, screenHeight, screenDepthBack, bezelColor, 0, yOffset, 0);
+
+    // 3. Tiang dan Alas
+    const standHeight = 0.25;
     const standYPos = yOffset - (screenHeight / 2) - (standHeight / 2);
-    generateCylinder(0.04, standHeight, 20, standColor, 0, standYPos, 0);
-
-    // 4. Alas/Base (Silinder pendek dan lebar) - Tetap sama, posisinya disesuaikan
+    generateCylinder(0.04, standHeight, 20, standColor, 0, standYPos, -screenDepthBack * 0.5); // Posisikan di tengah lekukan
+    
     const baseYPos = standYPos - (standHeight / 2) - 0.015;
-    generateCylinder(0.2, 0.03, 30, baseColor, 0, baseYPos, 0);
+    generateCylinder(0.2, 0.03, 30, baseColor, 0, baseYPos, -screenDepthBack * 0.5);
 }
+
 /**
- * Helper function untuk membuat balok (untuk layar dan bezel)
+ * Membuat hanya sisi depan dari sebuah balok (untuk panel layar)
  */
-function createCube(width, height, depth, color, cx, cy, cz) {
+function createCubeFace(width, height, depth, color, cx, cy, cz) {
     const w = width / 2;
     const h = height / 2;
     const d = depth / 2;
 
     const v = [
-        vec3(-w + cx, -h + cy, d + cz), // 0
-        vec3( w + cx, -h + cy, d + cz), // 1
-        vec3( w + cx,  h + cy, d + cz), // 2
-        vec3(-w + cx,  h + cy, d + cz), // 3
-        vec3(-w + cx, -h + cy, -d + cz),// 4
-        vec3( w + cx, -h + cy, -d + cz),// 5
-        vec3( w + cx,  h + cy, -d + cz),// 6
-        vec3(-w + cx,  h + cy, -d + cz) // 7
+        vec3(-w + cx, -h + cy, d + cz),
+        vec3( w + cx, -h + cy, d + cz),
+        vec3( w + cx,  h + cy, d + cz),
+        vec3(-w + cx,  h + cy, d + cz),
     ];
     
     const startIndex = vertices.length;
     vertices.push(...v);
-    for (let i = 0; i < 8; i++) vertexColors.push(color);
+    for (let i = 0; i < 4; i++) vertexColors.push(color);
 
-    const cubeIndices = [
-        0, 1, 2, 0, 2, 3, // Depan
-        4, 5, 6, 4, 6, 7, // Belakang
-        3, 2, 6, 3, 6, 7, // Atas
-        0, 1, 5, 0, 5, 4, // Bawah
-        4, 0, 3, 4, 3, 7, // Kiri
-        1, 5, 6, 1, 6, 2  // Kanan
-    ];
-
-    for (const index of cubeIndices) {
+    const faceIndices = [0, 1, 2, 0, 2, 3];
+    for (const index of faceIndices) {
         indices.push(startIndex + index);
     }
 }
 
 /**
- * Helper function untuk membuat silinder (untuk tiang dan alas)
+ * FUNGSI BARU: Membuat panel belakang melengkung & menyambungkannya
  */
+function createCurvedBackPanel(width, height, maxDepth, color, cx, cy, cz) {
+    const w = width / 2;
+    const h = height / 2;
+    const segments = 20; // Jumlah pembagian untuk membuat kurva
+
+    const startIndex = vertices.length;
+    const backVertices = [];
+    
+    // Generate grid vertices untuk permukaan melengkung
+    for (let j = 0; j <= segments; j++) {
+        for (let i = 0; i <= segments; i++) {
+            const u = i / segments; // 0 to 1
+            const v = j / segments; // 0 to 1
+
+            const x = cx + (u * width) - w;
+            const y = cy + (v * height) - h;
+            // Gunakan cosinus untuk membuat lekukan di sumbu Z
+            const z = cz - (maxDepth * Math.cos((u - 0.5) * Math.PI));
+            
+            backVertices.push(vec3(x, y, z));
+        }
+    }
+    
+    vertices.push(...backVertices);
+    for (let i = 0; i < backVertices.length; i++) vertexColors.push(color);
+
+    // Buat indices untuk permukaan melengkung
+    for (let j = 0; j < segments; j++) {
+        for (let i = 0; i < segments; i++) {
+            const row1 = j * (segments + 1);
+            const row2 = (j + 1) * (segments + 1);
+            indices.push(startIndex + row1 + i, startIndex + row1 + i + 1, startIndex + row2 + i + 1);
+            indices.push(startIndex + row1 + i, startIndex + row2 + i + 1, startIndex + row2 + i);
+        }
+    }
+
+    // Sambungkan sisi-sisi (dinding) antara depan dan belakang
+    const frontBezel = [
+        vec3(cx-w, cy-h, cz), vec3(cx+w, cy-h, cz),
+        vec3(cx+w, cy+h, cz), vec3(cx-w, cy+h, cz)
+    ];
+    const frontStartIndex = vertices.length;
+    vertices.push(...frontBezel);
+    for(let i=0; i<4; i++) vertexColors.push(color);
+    
+    // Dinding Atas
+    indices.push(frontStartIndex+3, frontStartIndex+2, startIndex + segments*(segments+1) + segments);
+    indices.push(frontStartIndex+3, startIndex + segments*(segments+1) + segments, startIndex + segments*(segments+1));
+    // Dinding Bawah
+    indices.push(frontStartIndex+0, frontStartIndex+1, startIndex + segments);
+    indices.push(frontStartIndex+0, startIndex + segments, startIndex);
+    // Dinding Kiri
+    indices.push(frontStartIndex+0, frontStartIndex+3, startIndex + segments*(segments+1));
+    indices.push(frontStartIndex+0, startIndex + segments*(segments+1), startIndex);
+    // Dinding Kanan
+    indices.push(frontStartIndex+1, frontStartIndex+2, startIndex + segments*(segments+1) + segments);
+    indices.push(frontStartIndex+1, startIndex + segments*(segments+1) + segments, startIndex + segments);
+}
+
+// ... (Fungsi generateCylinder, setupBuffers, render, hexToRgb, setupEventListeners TETAP SAMA seperti sebelumnya)
+
+// NOTE: Pastikan fungsi-fungsi di bawah ini masih ada di file Anda
 function generateCylinder(radius, height, segments, color, cx, cy, cz) {
     const h = height / 2;
     const startIndex = vertices.length;
-
-    // Titik pusat atas dan bawah
     const topCenter = vec3(cx, cy + h, cz);
     const bottomCenter = vec3(cx, cy - h, cz);
     vertices.push(topCenter, bottomCenter);
     vertexColors.push(color, color);
     const topCenterIndex = startIndex;
     const bottomCenterIndex = startIndex + 1;
-
-    // Buat titik-titik melingkar
     for (let i = 0; i <= segments; i++) {
         const angle = (i / segments) * 2 * Math.PI;
         const x = cx + radius * Math.cos(angle);
         const z = cz + radius * Math.sin(angle);
-        vertices.push(vec3(x, cy + h, z)); // Lingkaran atas
-        vertices.push(vec3(x, cy - h, z)); // Lingkaran bawah
+        vertices.push(vec3(x, cy + h, z));
+        vertices.push(vec3(x, cy - h, z));
         vertexColors.push(color, color);
     }
-
-    // Buat sisi-sisi dan tutup
     for (let i = 0; i < segments; i++) {
         const top1 = startIndex + 2 + i * 2;
         const bottom1 = top1 + 1;
         const top2 = startIndex + 2 + (i + 1) * 2;
         const bottom2 = top2 + 1;
-
-        // Sisi samping
         indices.push(top1, bottom1, top2);
         indices.push(bottom1, bottom2, top2);
-        
-        // Tutup atas
         indices.push(topCenterIndex, top1, top2);
-        
-        // Tutup bawah
         indices.push(bottomCenterIndex, bottom2, bottom1);
     }
 }
-
-
-/**
- * Mengirim data ke GPU
- */
 function setupBuffers() {
-    // Buffer Indeks
     var iBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-
-    // Buffer Warna
     var cBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, cBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(vertexColors), gl.STATIC_DRAW);
     var colorLoc = gl.getAttribLocation(program, "aColor");
     gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(colorLoc);
-
-    // Buffer Posisi
     var vBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
@@ -193,12 +215,7 @@ function setupBuffers() {
     gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
 }
-
-/**
- * Fungsi render yang dipanggil setiap frame
- */
 function render() {
-    // Ambil nilai dari UI
     const bgColor = document.getElementById('bg-color').value;
     let posX = parseFloat(document.getElementById('position-x').value);
     let posY = parseFloat(document.getElementById('position-y').value);
@@ -207,16 +224,14 @@ function render() {
     let rotY = parseFloat(document.getElementById('rotation-y').value);
     let rotZ = parseFloat(document.getElementById('rotation-z').value);
     let scaleValue = parseFloat(document.getElementById('scale').value);
-    
-    // Logika Animasi
     if (isAnimating) {
-        animationTime += 0.016; // ~60fps
+        animationTime += 0.016;
         if (animationPreset === 'spin') {
             rotY = (animationTime * 50) % 360;
             document.getElementById('rotation-y').value = rotY.toFixed(0);
             document.getElementById('rotation-y-value').textContent = rotY.toFixed(0);
         } else if (animationPreset === 'bounce') {
-            posY = 0.3 * Math.sin(animationTime * 4); // Langsung ubah variabel posY
+            posY = 0.3 * Math.sin(animationTime * 4);
             document.getElementById('position-y').value = posY.toFixed(2);
             document.getElementById('position-y-value').textContent = posY.toFixed(2);
         } else if (animationPreset === 'pulse') {
@@ -225,54 +240,38 @@ function render() {
             document.getElementById('scale-value').textContent = scaleValue.toFixed(2);
         }
     }
-
-    // Atur warna background
     const rgb = hexToRgb(bgColor);
     gl.clearColor(rgb[0], rgb[1], rgb[2], 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_TEST_BIT);
-
-    // Bangun Model-View Matrix dari nilai UI
     let mvm = mat4();
-    mvm = mult(mvm, translate(0, 0, -3)); // Mundurkan kamera
+    mvm = mult(mvm, translate(0, 0, -3));
     mvm = mult(mvm, translate(posX, posY, posZ));
     mvm = mult(mvm, rotate(rotZ, vec3(0, 0, 1)));
     mvm = mult(mvm, rotate(rotY, vec3(0, 1, 0)));
     mvm = mult(mvm, rotate(rotX, vec3(1, 0, 0)));
-    mvm = mult(mvm, scale(scaleValue, scaleValue, scaleValue)); // <-- PERBAIKAN UTAMA DI SINI
+    mvm = mult(mvm, scale(scaleValue, scaleValue, scaleValue));
     gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(mvm));
-
-    // Mode Wireframe
     if (document.getElementById('wireframe-mode').checked) {
-        // Gambar setiap segitiga sebagai kerangka garis (loop)
         for (let i = 0; i < indices.length; i += 3) {
-            gl.drawElements(gl.LINE_LOOP, 3, gl.UNSIGNED_SHORT, i * 2); // offset dikali 2 karena Uint16 = 2 byte
+            gl.drawElements(gl.LINE_LOOP, 3, gl.UNSIGNED_SHORT, i * 2);
         }
     } else {
         gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
     }
-
     requestAnimationFrame(render);
 }
-
-
-// --- FUNGSI-FUNGSI BANTUAN (UI, Event, dll) ---
-
 function hexToRgb(hex) {
     hex = hex.replace('#', '');
     var bigint = parseInt(hex, 16);
     return [((bigint >> 16) & 255) / 255, ((bigint >> 8) & 255) / 255, (bigint & 255) / 255];
 }
-
 function setupEventListeners() {
-    // Tombol Animasi
     document.getElementById('animate-btn').onclick = () => {
         isAnimating = !isAnimating;
-        animationTime = 0; // Reset waktu animasi
+        animationTime = 0;
         document.getElementById('animate-btn').textContent = isAnimating ? 'Stop Animasi' : 'Mulai Animasi';
     };
     document.getElementById('animation-preset').onchange = (e) => animationPreset = e.target.value;
-
-    // Update tampilan nilai slider
     const sliders = ['scale', 'position-x', 'position-y', 'position-z', 'rotation-x', 'rotation-y', 'rotation-z'];
     sliders.forEach(id => {
         const slider = document.getElementById(id);
@@ -284,7 +283,4 @@ function setupEventListeners() {
             });
         }
     });
-    
-    // Fungsionalitas Reset, Simpan/Muat Preset, Unduh Gambar...
-    // (Bisa ditambahkan di sini, mirip dengan kode yang sudah ada di HTML)
 }
