@@ -49,7 +49,7 @@ function init() {
 }
 
 /**
- * FUNGSI BARU UNTUK MEMBUAT MODEL YANG LEBIH DETAIL
+ * FUNGSI UNTUK MEMBUAT MODEL YANG LEBIH DETAIL
  */
 function createDetailedMonitorModel() {
     const bezelColor = vec4(0.2, 0.2, 0.2, 1.0);
@@ -64,7 +64,6 @@ function createDetailedMonitorModel() {
     const yOffset = 0.35;
 
     // 1. Buat Bingkai Depan (Bezel) dan Panel Layar
-    // Hanya bagian depan dari sebuah balok
     createCubeFace(screenWidth, screenHeight, screenDepthFront, bezelColor, 0, yOffset, 0);
     createCubeFace(screenWidth * 0.92, screenHeight * 0.88, screenDepthFront + 0.001, panelColor, 0, yOffset, 0);
 
@@ -74,10 +73,52 @@ function createDetailedMonitorModel() {
     // 3. Tiang dan Alas
     const standHeight = 0.25;
     const standYPos = yOffset - (screenHeight / 2) - (standHeight / 2);
-    generateCylinder(0.04, standHeight, 20, standColor, 0, standYPos, -screenDepthBack * 0.5); // Posisikan di tengah lekukan
+    generateCylinder(0.04, standHeight, 20, standColor, 0, standYPos, -screenDepthBack * 0.5); 
     
+    // --- PERUBAHAN DI SINI ---
     const baseYPos = standYPos - (standHeight / 2) - 0.015;
-    generateCylinder(0.2, 0.03, 30, baseColor, 0, baseYPos, -screenDepthBack * 0.5);
+    // PANGGIL createCube() UNTUK ALAS PERSEGI PANJANG
+    // Parameter: lebar(X), tinggi(Y), tebal(Z), warna, posisi pusat X, Y, Z
+    createCube(0.4, 0.03, 0.3, baseColor, 0, baseYPos, -screenDepthBack * 0.5);
+}
+
+
+/**
+ * Helper function untuk membuat balok (untuk layar dan bezel)
+ * Kita akan menggunakan fungsi ini juga untuk membuat alas
+ */
+function createCube(width, height, depth, color, cx, cy, cz) {
+    const w = width / 2;
+    const h = height / 2;
+    const d = depth / 2;
+
+    const v = [
+        vec3(-w + cx, -h + cy, d + cz), // 0
+        vec3( w + cx, -h + cy, d + cz), // 1
+        vec3( w + cx,  h + cy, d + cz), // 2
+        vec3(-w + cx,  h + cy, d + cz), // 3
+        vec3(-w + cx, -h + cy, -d + cz),// 4
+        vec3( w + cx, -h + cy, -d + cz),// 5
+        vec3( w + cx,  h + cy, -d + cz),// 6
+        vec3(-w + cx,  h + cy, -d + cz) // 7
+    ];
+    
+    const startIndex = vertices.length;
+    vertices.push(...v);
+    for (let i = 0; i < 8; i++) vertexColors.push(color);
+
+    const cubeIndices = [
+        0, 1, 2, 0, 2, 3, // Depan
+        4, 5, 6, 4, 6, 7, // Belakang
+        3, 2, 6, 3, 6, 7, // Atas
+        0, 1, 5, 0, 5, 4, // Bawah
+        4, 0, 3, 4, 3, 7, // Kiri
+        1, 5, 6, 1, 6, 2  // Kanan
+    ];
+
+    for (const index of cubeIndices) {
+        indices.push(startIndex + index);
+    }
 }
 
 /**
@@ -105,6 +146,9 @@ function createCubeFace(width, height, depth, color, cx, cy, cz) {
     }
 }
 
+// ####################################################################
+// ## FUNGSI YANG HILANG SEBELUMNYA, SEKARANG SUDAH ADA DI SINI ##
+// ####################################################################
 /**
  * FUNGSI BARU: Membuat panel belakang melengkung & menyambungkannya
  */
@@ -167,9 +211,7 @@ function createCurvedBackPanel(width, height, maxDepth, color, cx, cy, cz) {
     indices.push(frontStartIndex+1, startIndex + segments*(segments+1) + segments, startIndex + segments);
 }
 
-// ... (Fungsi generateCylinder, setupBuffers, render, hexToRgb, setupEventListeners TETAP SAMA seperti sebelumnya)
 
-// NOTE: Pastikan fungsi-fungsi di bawah ini masih ada di file Anda
 function generateCylinder(radius, height, segments, color, cx, cy, cz) {
     const h = height / 2;
     const startIndex = vertices.length;
